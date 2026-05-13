@@ -1,0 +1,284 @@
+"""LangGraph workflow for multi-agent code review.
+
+Default backend: MiMo (https://api.xiaomimimo.com/v1).
+"""
+
+import json
+import logging
+import os
+import glob
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+from langgraph.graph import StateGraph, END, START
+
+from mergewall.agents import (
+    StyleAgent,
+    SecurityAgent,
+    PerformanceAgent,
+    LogicAgent,
+    RepoAgent,
+    RefactorAgent,
+    FixAgent,
+    TestAgent,
+    DocAgent,
+    CoordinatorAgent,
+)
+from mergewall.agents.base import AgentResult, SEVERITY_ORDER
+from mergewall.config import GuardianConfig, load_config
+
+logger = logging.getLogger(__name__)
+
+# Agent class registry — maps YAML agent names to their class.
+# To add a new agent: (1) add entry here, (2) add a state field below.
+_AGENT_CLASSES: dict[str, type] = {
+    "style":       StyleAgent,
+    "security":    SecurityAgent,
+    "performance": PerformanceAgent,
+    "logic":       LogicAgent,
+    "repo":        RepoAgent,
+    "refactor":    RefactorAgent,
+    "fix":         FixAgent,
+    "test":        TestAgent,
+    "doc":         DocAgent,
+}
+
+
+@dataclass
+class ReviewState:
+    """State shared across the review workflow.
+
+    Each agent writes to its own field so that LangGraph's shallow-merge
+    semantics work correctly with concurrent runners.
+    """
+    code: str = ""
+    file_path: str = ""
+    style_result: Optional[AgentResult] = None
+    security_result: Optional[AgentResult] = None
+    performance_result: Optional[AgentResult] = None
+    logic_result: Optional[AgentResult] = None
+    repo_result: Optional[AgentResult] = None
+    refactor_result: Optional[AgentResult] = None
+    fix_result: Optional[AgentResult] = None
+    test_result: Optional[AgentResult] = None
+    doc_result: Optional[AgentResult] = None
+    final_result: Optional[AgentResult] = None
+
+
+# Reverse-lookup: agent name → ReviewState field name.
+_STATE_ATTR_MAP: dict[str, str] = {name: f"{name}_result" for name in _AGENT_CLASSES}
+
+
+class CodeReviewWorkflow:
+    """Orchestrates the multi-agent code review using LangGraph."""
+
+    def __init__(self, model: Optional[str] = None, config: Optional[GuardianConfig] = None):
+        self.config = config or load_config()
+        api_key = os.getenv("LLM_API_KEY")
+        base_url = os.getenv("LLM_BASE_URL", "https://api.xiaomimimo.com/v1")
+        model = model or self.config.model or os.getenv("LLM_MODEL", "mimo-v2.5-pro")
+
+        common_kwargs = {"model": model, "api_key": api_key, "base_url": base_url, "request_timeout": 120}
+
+        # Only instantiate agents that are enabled in the config.
+        self.agents: dict[str, object] = {}
+        for name, cls in _AGENT_CLASSES.items():
+            if self.config.is_agent_enabled(name):
+                self.agents[name] = cls(**common_kwargs)
+
+        self.coordinator = CoordinatorAgent(**common_kwargs)
+        self.graph = self._build_graph()
+
+    def _build_graph(self) -> StateGraph:
+        """Build the LangGraph workflow with only enabled agents."""
+        workflow = StateGraph(ReviewState)
+
+        for name in self.agents:
+            workflow.add_node(f"{name}_review", self._make_runner(name))
+
+        review_nodes = [f"{name}_review" for name in self.agents]
+        workflow.add_node("coordinate", self._run_coordinate)
+
+        for node in review_nodes:
+            workflow.add_edge(START, node)
+            workflow.add_edge(node, "coordinate")
+
+        workflow.add_edge("coordinate", END)
+        return workflow.compile()
+
+    def _make_runner(self, agent_name: str):
+        """Return an async runner that reviews with the named agent."""
+        agent = self.agents[agent_name]
+        state_attr = _STATE_ATTR_MAP[agent_name]
+
+        async def _run(state: ReviewState) -> dict:
+            result = await self._safe_review(agent, state)
+            # Apply severity threshold filtering if configured.
+            threshold = self.config.get_severity_threshold(agent_name)
+            if threshold is not None and result.findings:
+                min_level = SEVERITY_ORDER.get(threshold.value, 99)
+                result.findings = [f for f in result.findings if SEVERITY_ORDER.get(f.severity.value, 99) <= min_level]
+            return {state_attr: result}
+
+        return _run
+
+    async def _safe_review(self, agent, state: ReviewState) -> AgentResult:
+        """Run a single agent review, returning a failure result on exception
+        rather than crashing the entire workflow."""
+        try:
+            return await agent.review(state.code, state.file_path)
+        except Exception as exc:
+            logger.exception("%s failed: %s", agent.name, exc)
+            return AgentResult(
+                agent_name=agent.name,
+                summary=f"Agent error: {exc}",
+            )
+
+    async def _run_coordinate(self, state: ReviewState) -> dict:
+        """Collect results from all enabled agents and synthesize."""
+        results = []
+        for name in _AGENT_CLASSES:
+            if self.config.is_agent_enabled(name):
+                r = getattr(state, _STATE_ATTR_MAP[name], None)
+                if r is not None:
+                    results.append(r)
+        final = await self.coordinator.synthesize(results)
+        return {"final_result": final}
+
+    async def run(self, code: str, file_path: str = "") -> AgentResult:
+        """Run the full review workflow."""
+        initial_state = ReviewState(code=code, file_path=file_path)
+        final_state = await self.graph.ainvoke(initial_state)
+        return final_state.get("final_result", AgentResult(agent_name="System", summary="No results"))
+
+    @staticmethod
+    def _validate_diff_ref(diff_ref: str) -> None:
+        """Validate that diff_ref contains only safe characters for git."""
+        import re
+        if not re.match(r'^[a-zA-Z0-9._/~^:-]+$', diff_ref):
+            raise ValueError(f"Invalid diff reference: {diff_ref}")
+
+    async def run_from_diff(self, diff_ref: str) -> AgentResult:
+        """Run review on a git diff."""
+        import asyncio as _asyncio
+        self._validate_diff_ref(diff_ref)
+        proc = await _asyncio.create_subprocess_exec(
+            "git", "diff", diff_ref,
+            stdout=_asyncio.subprocess.PIPE,
+            stderr=_asyncio.subprocess.PIPE,
+            cwd=os.getcwd(),
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(f"git diff failed: {stderr.decode()}")
+        return await self.run(code=stdout.decode(), file_path=f"diff:{diff_ref}")
+
+    async def run_on_repo(self, repo_path: str, file_patterns: list[str] = None) -> list[AgentResult]:
+        """Run review on an entire repository. High token consumption scenario.
+
+        Scans all matching files, runs 9 agents per file, and produces
+        a consolidated repository-level report.
+        """
+        if file_patterns is None:
+            file_patterns = [
+                "**/*.py", "**/*.js", "**/*.jsx", "**/*.mjs",
+                "**/*.ts", "**/*.tsx", "**/*.go", "**/*.rs",
+                "**/*.java", "**/*.c", "**/*.cpp", "**/*.h",
+                "**/*.hpp", "**/*.rb", "**/*.php", "**/*.swift", "**/*.kt",
+            ]
+
+        files = []
+        for pattern in file_patterns:
+            files.extend(glob.glob(str(Path(repo_path) / pattern), recursive=True))
+
+        # Apply ignore patterns from config.
+        files = [f for f in files if not self.config.should_ignore(f)]
+
+        results = []
+        for f in files[:50]:
+            code = Path(f).read_text(encoding="utf-8", errors="ignore")
+            result = await self.run(code=code, file_path=f)
+            results.append(result)
+
+        return results
+
+    async def run_ci_mode(self, diff_ref: str = "HEAD~1") -> AgentResult:
+        """CI/CD integration mode — runs full review on every PR.
+
+        Designed for automated pipeline: git hook / GitHub Action / GitLab CI.
+        Runs all 9 agents + coordinator + repo-level scan.
+        """
+        diff_result = await self.run_from_diff(diff_ref)
+
+        import asyncio as _asyncio
+        self._validate_diff_ref(diff_ref)
+        proc = await _asyncio.create_subprocess_exec(
+            "git", "diff", "--name-only", diff_ref,
+            stdout=_asyncio.subprocess.PIPE,
+            stderr=_asyncio.subprocess.PIPE,
+            cwd=os.getcwd(),
+        )
+        stdout, _ = await proc.communicate()
+
+        full_results = [diff_result]
+        for file in stdout.decode().strip().split("\n"):
+            if file and os.path.exists(file):
+                code = Path(file).read_text(encoding="utf-8")
+                result = await self.run(code=code, file_path=file)
+                full_results.append(result)
+
+        final = await self.coordinator.synthesize(full_results)
+        return final
+
+
+@dataclass
+class ReviewReport:
+    """Formatted review report."""
+    result: AgentResult
+
+    def to_markdown(self) -> str:
+        """Render the review result as a Markdown report."""
+        lines = [
+            "# CodeGuardian Review Report\n",
+            "## 📊 Overview\n",
+            self.result.summary,
+            f"\n**Total Findings:** {len(self.result.findings)}\n",
+        ]
+
+        categories = {}
+        for f in self.result.findings:
+            categories.setdefault(f.agent, []).append(f)
+
+        for agent, findings in categories.items():
+            lines.append(f"\n## {agent} ({len(findings)} issues)\n")
+            for f in findings:
+                emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(f.severity.value, "⚪")
+                lines.append(f"### {emoji} [{f.severity.value.upper()}] {f.title}")
+                if f.line_number is not None:
+                    lines.append(f"**Line:** {f.line_number}")
+                lines.append(f"\n{f.description}")
+                if f.suggestion:
+                    lines.append(f"\n**Suggestion:** {f.suggestion}")
+                lines.append("")
+
+        return "\n".join(lines)
+
+    def to_json(self) -> str:
+        """Render the review result as a JSON string."""
+        data = {
+            "summary": self.result.summary,
+            "total_findings": len(self.result.findings),
+            "findings": [
+                {
+                    "agent": f.agent,
+                    "severity": f.severity.value,
+                    "title": f.title,
+                    "line": f.line_number,
+                    "description": f.description,
+                    "suggestion": f.suggestion,
+                }
+                for f in self.result.findings
+            ],
+        }
+        return json.dumps(data, indent=2, ensure_ascii=False)
