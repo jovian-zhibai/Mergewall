@@ -155,5 +155,57 @@ def demo():
         sys.exit(1)
 
 
+@cli.command()
+@click.option("--force", "-f", is_flag=True, help="Overwrite existing .mergewall.yml without prompting")
+def init(force: bool):
+    """Create a starter .mergewall.yml configuration file."""
+    config_path = Path(".mergewall.yml")
+    if config_path.exists() and not force:
+        if not click.confirm(".mergewall.yml already exists, overwrite?"):
+            click.echo("Aborted.")
+            return
+
+    config_content = """\
+# Mergewall Governance Configuration
+# See: https://github.com/jovian-zhibai/Mergewall#configuration
+
+model: mimo-v2.5-pro
+
+agents:
+  security:
+    enabled: true
+  style:
+    enabled: false
+  refactor:
+    enabled: false
+
+governance:
+  mode: "governance"
+
+  path_rules:
+    - paths: ["src/auth/**", "**/middleware/auth*"]
+      risk_categories: ["auth_bypass", "permission_escalation"]
+      min_level: "medium"
+      action: "block"
+      require_approval_from: ["security-team"]
+
+    - paths: ["**"]
+      risk_categories: ["secret_leakage"]
+      min_level: "low"
+      action: "block"
+
+  threshold_rules:
+    - min_score: 60
+      action: "block"
+    - min_score: 30
+      action: "require_approval"
+
+  default_action: "warn"
+  min_confidence: 0.7
+"""
+    config_path.write_text(config_content, encoding="utf-8")
+    click.echo("Created .mergewall.yml — edit to customize governance rules")
+
+
 if __name__ == "__main__":
     cli()
