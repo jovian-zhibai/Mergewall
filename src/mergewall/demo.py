@@ -323,3 +323,118 @@ def _build_coordinator_summary(findings: list[ReviewFinding], risk_score: int = 
     lines.append("*Note: This report was generated in DEMO mode. Real MiMo-powered reviews will call the API.*")
 
     return "\n".join(lines)
+
+
+# ============================================================================
+# Governance Demo Mode
+# ============================================================================
+
+
+def run_governance_demo():
+    """Run a governance-focused demo showing the full deterministic pipeline.
+
+    Creates mock diffs with 4 risk categories (secret_leakage, auth_bypass,
+    permission_escalation, dangerous_dependencies), runs them through the
+    DiffRiskEngine with all 6 deterministic guards, and prints a full report.
+
+    No LLM, no API key required — pure deterministic path.
+    """
+    from mergewall.diff.models import ChangeType, DiffLine, FileDiff, Hunk, StructuredDiff
+    from mergewall.risk.engine import DiffRiskEngine
+    from mergewall.risk.models import MergeDecision
+
+    # Build mock diffs that trigger 4 core risk categories
+    auth_file = FileDiff(
+        old_path="src/auth/views.py",
+        new_path="src/auth/views.py",
+        change_type=ChangeType.MODIFIED,
+        hunks=[
+            Hunk(
+                old_start=10, old_count=5, new_start=10, new_count=4,
+                lines=[
+                    DiffLine(old_line=10, new_line=None, content="@login_required", change_type="-"),
+                    DiffLine(old_line=11, new_line=None, content="def admin_panel(request):", change_type="-"),
+                    DiffLine(old_line=None, new_line=10, content="skip_authentication = True", change_type="+"),
+                    DiffLine(old_line=None, new_line=11, content="def admin_panel(request):", change_type="+"),
+                    DiffLine(old_line=None, new_line=12, content="    is_superuser = True  # privilege escalation", change_type="+"),
+                    DiffLine(old_line=12, new_line=13, content="    return render(request, 'admin.html')", change_type=" "),
+                ],
+            ),
+        ],
+    )
+
+    secret_file = FileDiff(
+        old_path="src/config.py",
+        new_path="src/config.py",
+        change_type=ChangeType.MODIFIED,
+        hunks=[
+            Hunk(
+                old_start=1, old_count=0, new_start=1, new_count=3,
+                lines=[
+                    DiffLine(old_line=None, new_line=1, content='AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"', change_type="+"),
+                    DiffLine(old_line=None, new_line=2, content='GITHUB_TOKEN = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"', change_type="+"),
+                    DiffLine(old_line=None, new_line=3, content='DB_PASSWORD = "supersecret123"', change_type="+"),
+                ],
+            ),
+        ],
+    )
+
+    deps_file = FileDiff(
+        old_path="requirements.txt",
+        new_path="requirements.txt",
+        change_type=ChangeType.MODIFIED,
+        hunks=[
+            Hunk(
+                old_start=1, old_count=3, new_start=1, new_count=3,
+                lines=[
+                    DiffLine(old_line=None, new_line=1, content="django>=3.0  # downgraded from 4.x", change_type="+"),
+                    DiffLine(old_line=None, new_line=2, content="requests>=2.28.0  # unpinned, no upper bound", change_type="+"),
+                    DiffLine(old_line=1, new_line=None, content="django>=4.2", change_type="-"),
+                    DiffLine(old_line=2, new_line=None, content="requests==2.31.0", change_type="-"),
+                ],
+            ),
+        ],
+    )
+
+    api_file = FileDiff(
+        old_path="src/api/routes.py",
+        new_path="src/api/routes.py",
+        change_type=ChangeType.MODIFIED,
+        hunks=[
+            Hunk(
+                old_start=20, old_count=3, new_start=20, new_count=1,
+                lines=[
+                    DiffLine(old_line=20, new_line=None, content="def get_user(user_id: int):", change_type="-"),
+                    DiffLine(old_line=21, new_line=None, content='    """Fetch user by ID."""', change_type="-"),
+                    DiffLine(old_line=22, new_line=None, content="    return db.query(User).get(user_id)", change_type="-"),
+                ],
+            ),
+        ],
+    )
+
+    shared_file = FileDiff(
+        old_path="src/utils/helpers.py",
+        new_path="src/utils/helpers.py",
+        change_type=ChangeType.MODIFIED,
+        hunks=[
+            Hunk(
+                old_start=1, old_count=0, new_start=1, new_count=150,
+                lines=[
+                    DiffLine(old_line=None, new_line=i, content=f"# line {i} of a large shared utility refactor", change_type="+")
+                    for i in range(1, 151)
+                ],
+            ),
+        ],
+    )
+
+    diff = StructuredDiff(files=[auth_file, secret_file, deps_file, api_file, shared_file])
+
+    # Run the deterministic risk engine
+    import asyncio
+    engine = DiffRiskEngine()
+    report = asyncio.run(engine.analyze(diff))
+    report.repo = "org/demo-repo"
+    report.pr_number = 42
+
+    return report
+

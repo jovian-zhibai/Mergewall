@@ -142,5 +142,18 @@ def audit():
         )
 
 
+@cli.command()
+def demo():
+    """Run a governance demo with mock risks (no API key needed)."""
+    from mergewall.demo import run_governance_demo
+    click.echo("Running Mergewall governance demo...\n")
+    report = run_governance_demo()
+    click.echo(report.to_markdown())
+
+    from mergewall.risk.models import MergeDecision
+    if report.merge_decision == MergeDecision.BLOCK:
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()
