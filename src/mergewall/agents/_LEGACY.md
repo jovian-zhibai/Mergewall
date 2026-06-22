@@ -24,6 +24,18 @@ and is **not used in the Mergewall governance pipeline** (`mergewall govern`).
 - `risk/llm_agents.py` extends `BaseReviewAgent` from `agents/base.py`
 - `config.py` imports the `Severity` enum from `agents/base.py`
 - `utils/dedup.py` uses `ReviewFinding` and `SEVERITY_ORDER`
+- `demo.py` uses `AgentResult`, `ReviewFinding`, `Severity`, and `CoordinatorAgent`
+
+## Dependency chain
+
+```
+main.py (review command) → graph/workflow.py → agents/*
+risk/llm_agents.py → agents/base.py (BaseReviewAgent)
+config.py → agents/base.py (Severity)
+utils/dedup.py → agents/base.py (ReviewFinding, SEVERITY_ORDER)
+```
+
+**Status as of 2025-07-14:** `team/` and `analysis/` directories have been deleted. `agents/` and `graph/` remain because they are still imported by active modules.
 
 ## Mergewall governance vs. RevHive review
 

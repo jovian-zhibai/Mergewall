@@ -76,7 +76,7 @@ def review(file: str, diff_ref: str, model: str, output: str, fmt: str):
 
 @cli.command()
 @click.option("--diff", "-d", "diff_ref", default="HEAD~1", help="Git diff reference")
-@click.option("--format", "fmt", type=click.Choice(["markdown", "json"]), default="markdown")
+@click.option("--format", "fmt", type=click.Choice(["markdown", "json", "sarif"]), default="markdown")
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
 def govern(diff_ref: str, fmt: str, output: str):
     """Run governance analysis on a diff (deterministic risk engine)."""
@@ -110,6 +110,10 @@ def govern(diff_ref: str, fmt: str, output: str):
         import json
         from dataclasses import asdict
         text = json.dumps(asdict(report), indent=2, default=str)
+    elif fmt == "sarif":
+        from mergewall.output import to_sarif
+        import json
+        text = json.dumps(to_sarif(report), indent=2)
     else:
         text = report.to_markdown()
 
