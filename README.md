@@ -57,22 +57,28 @@ Mergewall detects 6 categories of high-value, high-impact risks:
 ## Quick Start
 
 ```bash
-# 1. Install
+# Install
+pip install mergewall
+
+# Generate default configuration
+mergewall init
+
+# Try the demo (no API key needed)
+mergewall demo
+
+# Run governance on a diff
+mergewall govern --diff HEAD~1
+
+# View audit trail
+mergewall audit
+```
+
+For development:
+
+```bash
 git clone https://github.com/jovian-zhibai/Mergewall.git
 cd Mergewall
 pip install -e ".[dev]"
-
-# 2. Generate default configuration
-mergewall init
-
-# 3. Try the demo (no API key needed)
-mergewall demo
-
-# 4. Run governance on a diff
-mergewall govern --diff HEAD~1
-
-# 5. View audit trail
-mergewall audit
 ```
 
 ## Audit Trail
