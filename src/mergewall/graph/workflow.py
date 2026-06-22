@@ -240,7 +240,7 @@ class ReviewReport:
     def to_markdown(self) -> str:
         """Render the review result as a Markdown report."""
         lines = [
-            "# CodeGuardian Review Report\n",
+            "# Mergewall Review Report\n",
             "## 📊 Overview\n",
             self.result.summary,
             f"\n**Total Findings:** {len(self.result.findings)}\n",

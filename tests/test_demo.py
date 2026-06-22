@@ -52,7 +52,7 @@ def test_demo_report_markdown():
     report = ReviewReport(result)
     md = report.to_markdown()
 
-    assert "# CodeGuardian Review Report" in md
+    assert "# Mergewall Review Report" in md
     assert "SecurityAgent" in md
     assert "SQL Injection" in md
 
