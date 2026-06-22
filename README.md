@@ -2,7 +2,8 @@
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![LangGraph](https://img.shields.io/badge/framework-LangGraph-orange)](https://langchain-ai.github.io/langgraph/)
+[![CI](https://github.com/jovian-zhibai/Mergewall/actions/workflows/ci.yml/badge.svg)](https://github.com/jovian-zhibai/Mergewall/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/mergewall)](https://pypi.org/project/mergewall/)
 
 **AI Merge Governance Runtime — Block high-risk AI-generated code from entering production.**
 
@@ -23,6 +24,21 @@ PR opened → Diff Parser → Risk Engine → Policy Engine → GitHub Checks AP
 | "LGTM" culture lets bugs through | Policy engine enforces org rules per directory |
 | No audit trail for compliance | JSONL audit log of every governance decision |
 
+## Mergewall + RevHive
+
+Mergewall handles **mandatory governance** (blocking high-risk merges), while
+[RevHive](https://github.com/jovian-zhibai/RevHive) provides **advisory review**
+(multi-agent code quality analysis). They complement each other:
+
+- RevHive reviews code and outputs a risk score → Mergewall can consume it as governance input
+- Mergewall blocks a PR and suggests fixes → RevHive's FixAgent can auto-generate patches
+
+| | RevHive | Mergewall |
+|---|---|---|
+| **Goal** | Find issues | Prevent issues |
+| **Output** | Review report + suggestions | Block / Allow decision |
+| **Enforcement** | Advisory (PR comments) | Mandatory (GitHub Checks) |
+
 ## Risk Categories
 
 Mergewall detects 6 categories of high-value, high-impact risks:
@@ -42,15 +58,61 @@ Mergewall detects 6 categories of high-value, high-impact risks:
 
 ```bash
 # 1. Install
-git clone https://github.com/Jansen003/Mergewall.git
+git clone https://github.com/jovian-zhibai/Mergewall.git
 cd Mergewall
 pip install -e ".[dev]"
 
-# 2. Run governance on a diff (CLI mode)
+# 2. Generate default configuration
+mergewall init
+
+# 3. Try the demo (no API key needed)
+mergewall demo
+
+# 4. Run governance on a diff
 mergewall govern --diff HEAD~1
 
-# 3. View audit trail
+# 5. View audit trail
 mergewall audit
+```
+
+## Audit Trail
+
+Every governance decision is logged to `.mergewall/audit.jsonl`:
+
+```json
+{"repo": "org/repo", "pr_number": 42, "merge_decision": "block", "risk_score": 25, "finding_count": 1, "required_approvals": ["security-team"], "timestamp": "2026-05-14T..."}
+```
+
+View the audit trail:
+
+```bash
+mergewall audit
+```
+
+This displays the last 20 decisions in a table:
+
+```
+Timestamp            Repo                 Decision           Score   Findings
+------------------------------------------------------------------------------
+2025-07-14T12:00:00  org/repo             block              85      6
+2025-07-14T11:55:00  org/repo             allow              0       0
+```
+
+## Policy Templates
+
+Jump-start your configuration with a pre-built template:
+
+| Template | Use Case |
+|---|---|
+| `starter.yml` | Minimal — block CRITICAL only |
+| `strict.yml` | Aggressive — score>30 approval, >60 block |
+| `fintech.yml` | Financial — auth changes require security-team |
+| `monorepo.yml` | Monorepo — per-directory risk grading |
+| `opensource.yml` | Open source — strict review for contributors |
+
+```bash
+# Copy a template to .mergewall.yml to get started
+cp templates/starter.yml .mergewall.yml
 ```
 
 ## How It Works
@@ -127,17 +189,15 @@ Creates check runs on commits that block merges when branch protection is enable
 - `WARN` → gray circle (`neutral`)
 - `ALLOW` → green check (`success`)
 
-### 5. Audit Trail
-
-Every governance decision is logged to `.mergewall/audit.jsonl`:
-
-```json
-{"repo": "org/repo", "pr_number": 42, "merge_decision": "block", "risk_score": 25, "finding_count": 1, "required_approvals": ["security-team"], "timestamp": "2026-05-14T..."}
-```
-
 ## CLI Commands
 
 ```bash
+# Generate default configuration
+mergewall init
+
+# Run governance demo with mock risks (no API key)
+mergewall demo
+
 # Run governance analysis (exit code 1 if blocked)
 mergewall govern --diff HEAD~1
 
@@ -188,9 +248,18 @@ Then enable "Require status checks to pass" in branch protection settings.
 
 ## Configuration
 
-Create `.mergewall.yml` in your project root:
+Generate a starter config:
+
+```bash
+mergewall init
+```
+
+Or create `.mergewall.yml` manually. See [Policy Templates](#policy-templates) for ready-made configurations.
+
+### Example `.mergewall.yml`
 
 ```yaml
+# mergewall init generates this starter template
 model: mimo-v2.5-pro
 
 agents:
@@ -259,8 +328,11 @@ src/mergewall/
   enforcement/       # GitHub Checks API client
   audit/             # JSONL audit trail
   memory/            # Per-module risk history
-  agents/            # Legacy review agents (still available)
-  graph/             # LangGraph workflow orchestration
+  agents/            # Legacy review agents (from RevHive)
+  graph/             # Legacy LangGraph workflow (from RevHive)
+  team/              # Legacy batch processing (from RevHive)
+  analysis/          # Legacy trend analysis (from RevHive)
+  utils/             # Shared utilities (LLM client, dedup, parser)
   main.py            # CLI entry point
 tests/               # 113 tests
 ```
