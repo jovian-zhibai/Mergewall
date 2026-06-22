@@ -239,5 +239,19 @@ governance:
     click.echo("Created .mergewall.yml — edit to customize governance rules")
 
 
+@cli.command()
+def hook_install():
+    """Install pre-commit hook to run governance checks before commits."""
+    from mergewall.hooks import install_hook
+    install_hook()
+
+
+@cli.command()
+def hook_run():
+    """Run governance checks on staged changes (called by pre-commit hook)."""
+    from mergewall.hooks import pre_commit_hook
+    sys.exit(pre_commit_hook())
+
+
 if __name__ == "__main__":
     cli()
