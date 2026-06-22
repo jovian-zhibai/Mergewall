@@ -1,6 +1,6 @@
 """Repo Memory — tracks historical risk data per directory/module.
 
-Stores risk history in .codeguardian/memory.json for long-term
+Stores risk history in .mergewall/memory.json for long-term
 pattern detection and hotspot identification.
 """
 
