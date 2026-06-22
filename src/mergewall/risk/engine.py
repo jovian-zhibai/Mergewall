@@ -59,7 +59,7 @@ class DiffRiskEngine:
 
     def _init_guards(self) -> list[BaseGuard]:
         """Instantiate all deterministic guards."""
-        return [
+        guards: list[BaseGuard] = [
             SecretLeakageGuard(),
             AuthBypassGuard(),
             PermissionEscalationGuard(),
@@ -67,6 +67,12 @@ class DiffRiskEngine:
             APIContractGuard(),
             BlastRadiusGuard(),
         ]
+        # Load custom guards from config
+        if self.config is not None:
+            from mergewall.risk.guards.plugin import load_custom_guards
+            custom = load_custom_guards(self.config)
+            guards.extend(custom)
+        return guards
 
     async def analyze(self, diff: StructuredDiff) -> RiskReport:
         """Run the full risk analysis pipeline.

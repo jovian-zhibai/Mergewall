@@ -211,6 +211,7 @@ def load_config(path: Optional[str | Path] = None) -> GuardianConfig:
     governance_policy = _parse_governance(raw.get("governance", {}))
 
     cfg = GuardianConfig(model=model, agents=agents, ignore=ignore, governance_policy=governance_policy)
+    cfg._raw_custom_guards = raw.get("custom_guards", [])  # for plugin loader
     _config_cache = cfg
     _config_cache_path = resolved
     return cfg

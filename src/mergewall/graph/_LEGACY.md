@@ -12,9 +12,9 @@ and is **not used in the Mergewall governance pipeline** (`mergewall govern`).
 ## Why it's still here
 
 - The `mergewall review` CLI command (legacy advisory mode) uses `CodeReviewWorkflow`
-- `team/batch_processor.py` uses it for batch review across repos
-- `analysis/trend.py` uses it for trend analysis
 - `server/worker.py` uses it as a fallback when governance mode is not configured
+
+**Status as of 2025-07-14:** `team/` and `analysis/` directories have been deleted. `graph/` remains for the legacy `review` CLI command.
 
 ## Mergewall governance
 

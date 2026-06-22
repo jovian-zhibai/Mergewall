@@ -271,3 +271,70 @@ class TestDiffRiskEngine:
         report = await self.engine.analyze(diff)
         assert "Risk score" in report.summary
         assert "BLOCK" in report.summary or "block" in report.summary
+
+
+# ---------------------------------------------------------------------------
+# Custom Guard Plugin Tests
+# ---------------------------------------------------------------------------
+
+
+class TestCustomGuards:
+    def test_custom_guard_detects_pattern(self):
+        from mergewall.risk.guards.plugin import CustomGuard
+        guard = CustomGuard(
+            name="no-debug-print",
+            pattern=r"print\(.*\)",
+            category="dangerous_dependencies",
+            level="low",
+            message="Debug print found",
+            suggestion="Remove before merge",
+        )
+        fd = _make_file_diff("app.py", ['print("hello")'])
+        findings = guard.scan(fd)
+        assert len(findings) == 1
+        assert "no-debug-print" in findings[0].title
+
+    def test_custom_guard_respects_file_pattern(self):
+        from mergewall.risk.guards.plugin import CustomGuard
+        guard = CustomGuard(
+            name="js-only",
+            pattern=r"console\.log",
+            file_pattern="*.js",
+        )
+        fd_py = _make_file_diff("app.py", ['console.log("x")'])
+        fd_js = _make_file_diff("app.js", ['console.log("x")'])
+        assert len(guard.scan(fd_py)) == 0
+        assert len(guard.scan(fd_js)) == 1
+
+    def test_load_custom_guards_from_config(self):
+        from mergewall.risk.guards.plugin import load_custom_guards
+        from mergewall.config import GuardianConfig
+
+        cfg = GuardianConfig()
+        cfg._raw_custom_guards = [
+            {"name": "no-console-log", "pattern": r"console\.log\(", "level": "low"},
+            {"name": "no-todo", "pattern": r"TODO", "level": "low", "message": "TODO left in code"},
+        ]
+        guards = load_custom_guards(cfg)
+        assert len(guards) == 2
+        assert guards[0].name == "no-console-log"
+        assert guards[1].pattern.pattern == r"TODO"
+
+    def test_custom_guard_in_engine(self):
+        import pytest
+        from mergewall.risk.engine import DiffRiskEngine
+        from mergewall.config import GuardianConfig
+        from mergewall.risk.models import MergeDecision
+
+        cfg = GuardianConfig()
+        cfg._raw_custom_guards = [
+            {"name": "no-debug", "pattern": r"debugger", "level": "critical"},
+        ]
+        engine = DiffRiskEngine(config=cfg)
+        diff = StructuredDiff(files=[
+            _make_file_diff("app.js", ["debugger;"]),
+        ])
+        import asyncio
+        report = asyncio.run(engine.analyze(diff))
+        assert any("no-debug" in f.title for f in report.findings)
+        assert report.merge_decision == MergeDecision.BLOCK

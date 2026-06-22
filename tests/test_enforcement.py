@@ -140,3 +140,110 @@ class TestRiskReportOutput:
         report = RiskReport(pr_number=1, repo="org/repo", findings=[], merge_decision=MergeDecision.ALLOW, risk_score=0)
         md = report.to_markdown()
         assert "Merge Allowed" in md
+
+
+# ---------------------------------------------------------------------------
+# PR Comment Template Tests
+# ---------------------------------------------------------------------------
+
+
+class TestPRComment:
+    def test_comment_block(self):
+        from mergewall.enforcement.comment import format_pr_comment
+        from mergewall.risk.models import (
+            RiskCategory, RiskLevel, MergeDecision, RiskReport, RiskFinding,
+            RiskEvidence, DetectionMethod,
+        )
+        report = RiskReport(
+            pr_number=42, repo="org/repo",
+            findings=[
+                RiskFinding(
+                    category=RiskCategory.SECRET_LEAKAGE,
+                    level=RiskLevel.CRITICAL,
+                    title="Hardcoded secret",
+                    why_dangerous="Secret in code",
+                    impact_scope="All",
+                    evidence=RiskEvidence(
+                        file_path="config.py", line_numbers=[15],
+                        detection_method=DetectionMethod.DETERMINISTIC,
+                    ),
+                    merge_decision=MergeDecision.BLOCK,
+                    fix_suggestion="Use env var",
+                ),
+            ],
+            merge_decision=MergeDecision.BLOCK,
+            risk_score=25,
+        )
+        comment = format_pr_comment(report)
+        assert "**Decision: BLOCK**" in comment
+        assert "25/100" in comment
+        assert "Fix the issues above" in comment
+        assert "config.py" in comment
+
+    def test_comment_allow(self):
+        from mergewall.enforcement.comment import format_pr_comment
+        from mergewall.risk.models import MergeDecision, RiskReport
+        report = RiskReport(pr_number=1, repo="org/repo", merge_decision=MergeDecision.ALLOW)
+        comment = format_pr_comment(report)
+        assert "**Decision: ALLOW**" in comment
+        assert "No blocking issues" in comment
+
+    def test_comment_no_findings(self):
+        from mergewall.enforcement.comment import format_pr_comment
+        from mergewall.risk.models import MergeDecision, RiskReport
+        report = RiskReport(pr_number=1, repo="org/repo", merge_decision=MergeDecision.ALLOW)
+        comment = format_pr_comment(report)
+        assert "No risks detected" in comment
+
+
+# ---------------------------------------------------------------------------
+# SARIF Output Tests
+# ---------------------------------------------------------------------------
+
+
+class TestSARIFOutput:
+    def test_sarif_structure(self):
+        from mergewall.output import to_sarif
+        from mergewall.risk.models import (
+            RiskCategory, RiskLevel, MergeDecision, RiskReport, RiskFinding,
+            RiskEvidence, DetectionMethod,
+        )
+        report = RiskReport(
+            pr_number=42, repo="org/repo",
+            findings=[
+                RiskFinding(
+                    category=RiskCategory.SECRET_LEAKAGE,
+                    level=RiskLevel.CRITICAL,
+                    title="Hardcoded secret",
+                    why_dangerous="Secret in code",
+                    impact_scope="All",
+                    evidence=RiskEvidence(
+                        file_path="config/settings.py", line_numbers=[42],
+                        detection_method=DetectionMethod.DETERMINISTIC,
+                    ),
+                    merge_decision=MergeDecision.BLOCK,
+                ),
+            ],
+            merge_decision=MergeDecision.BLOCK,
+            risk_score=25,
+        )
+        sarif = to_sarif(report)
+        assert sarif["version"] == "2.1.0"
+        assert "$schema" in sarif
+        assert len(sarif["runs"]) == 1
+        run = sarif["runs"][0]
+        assert run["tool"]["driver"]["name"] == "Mergewall"
+        assert len(run["results"]) == 1
+        result = run["results"][0]
+        assert result["ruleId"] == "secret-leakage"
+        assert result["level"] == "error"
+        loc = result["locations"][0]
+        assert loc["physicalLocation"]["artifactLocation"]["uri"] == "config/settings.py"
+        assert loc["physicalLocation"]["region"]["startLine"] == 42
+
+    def test_sarif_empty(self):
+        from mergewall.output import to_sarif
+        from mergewall.risk.models import RiskReport
+        report = RiskReport(pr_number=1, repo="org/repo")
+        sarif = to_sarif(report)
+        assert len(sarif["runs"][0]["results"]) == 0

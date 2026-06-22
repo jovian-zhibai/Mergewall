@@ -92,8 +92,9 @@ class EnforcementEngine:
 
         # 5. Post PR comment
         try:
-            from server.worker import post_pr_comment
-            await post_pr_comment(self.checks_client.token, repo, pr_number, risk_report.to_markdown())
+            from mergewall.enforcement.comment import format_pr_comment
+            comment_body = format_pr_comment(risk_report)
+            await self._post_comment(repo, pr_number, comment_body)
         except Exception:
             logger.exception("Failed to post PR comment for %s#%d", repo, pr_number)
 
@@ -111,3 +112,18 @@ class EnforcementEngine:
         ))
 
         return policy_decision
+
+    async def _post_comment(self, repo: str, pr_number: int, body: str) -> None:
+        """Post a governance report as a PR comment via GitHub API."""
+        import httpx
+        url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {self.checks_client.token}",
+                    "Accept": "application/vnd.github+json",
+                },
+                json={"body": body},
+            )
+            resp.raise_for_status()

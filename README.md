@@ -121,6 +121,29 @@ Jump-start your configuration with a pre-built template:
 cp templates/starter.yml .mergewall.yml
 ```
 
+## Custom Guards
+
+Define your own pattern-based risk guards in `.mergewall.yml` without writing Python code:
+
+```yaml
+# .mergewall.yml
+custom_guards:
+  - name: "no-console-log"
+    pattern: "console\\.log\\("
+    category: "dangerous_dependencies"
+    level: "low"
+    message: "Remove console.log before merging to production"
+    suggestion: "Use a structured logger instead"
+    file_pattern: "*.js"
+
+  - name: "no-debugger"
+    pattern: "debugger"
+    level: "critical"
+    message: "debugger statement will halt execution in browsers"
+```
+
+Custom guards run after the 6 built-in deterministic guards. Each guard produces a standard `RiskFinding` with the specified category and severity.
+
 ## How It Works
 
 ### 1. Diff Parser
@@ -210,6 +233,9 @@ mergewall govern --diff HEAD~1
 # Run governance with JSON output
 mergewall govern --diff HEAD~1 --format json
 
+# Run governance with SARIF output (GitHub Code Scanning)
+mergewall govern --diff HEAD~1 --format sarif --output results.sarif
+
 # Save report to file
 mergewall govern --diff HEAD~1 --output report.md
 
@@ -247,7 +273,11 @@ jobs:
       - name: Run Governance
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        run: mergewall govern --diff origin/main
+        run: mergewall govern --diff origin/main --format sarif --output results.sarif
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
 ```
 
 Then enable "Require status checks to pass" in branch protection settings.
@@ -336,11 +366,9 @@ src/mergewall/
   memory/            # Per-module risk history
   agents/            # Legacy review agents (from RevHive)
   graph/             # Legacy LangGraph workflow (from RevHive)
-  team/              # Legacy batch processing (from RevHive)
-  analysis/          # Legacy trend analysis (from RevHive)
   utils/             # Shared utilities (LLM client, dedup, parser)
   main.py            # CLI entry point
-tests/               # 113 tests
+tests/               # 128 tests
 ```
 
 ## License
