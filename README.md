@@ -262,7 +262,7 @@ src/mergewall/
   agents/            # Legacy review agents (still available)
   graph/             # LangGraph workflow orchestration
   main.py            # CLI entry point
-tests/               # 112+ tests
+tests/               # 113 tests
 ```
 
 ## License

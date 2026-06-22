@@ -17,3 +17,4 @@ htmlcov/
 *.log
 .mergewall/
 .codeguardian/
+.dev/
