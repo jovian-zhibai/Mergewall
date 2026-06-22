@@ -5,7 +5,7 @@
 [![LangGraph](https://img.shields.io/badge/framework-LangGraph-orange)](https://langchain-ai.github.io/langgraph/)
 [![MiMo](https://img.shields.io/badge/powered_by-MiMo-red)](https://platform.xiaomimimo.com)
 [![Agents](https://img.shields.io/badge/agents-10-blue)]()
-[![CI](https://github.com/SoulJian03/CodeGuardian/actions/workflows/ci.yml/badge.svg)](https://github.com/SoulJian03/CodeGuardian/actions)
+[![CI](https://github.com/jovian-zhibai/Mergewall/actions/workflows/ci.yml/badge.svg)](https://github.com/jovian-zhibai/Mergewall/actions)
 
 **基于 Multi-Agent 协作的 AI 代码审查与安全扫描系统**
 
@@ -71,7 +71,7 @@ CodeGuardian 部署 10 个专业 AI Agent — 9 个并行审查，1 个综合汇
 
 ```bash
 # 1. 安装
-git clone https://github.com/SoulJian03/CodeGuardian.git
+git clone https://github.com/jovian-zhibai/Mergewall.git
 cd CodeGuardian
 pip install -e ".[dev]"
 
