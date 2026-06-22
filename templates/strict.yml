@@ -1,0 +1,22 @@
+# Mergewall Governance Configuration — Strict
+# Aggressive policy: score > 30 requires approval, > 60 blocks merge.
+# Suitable for security-sensitive projects (payments, user data).
+
+governance:
+  mode: "governance"
+
+  path_rules:
+    - paths: ["**"]
+      risk_categories: ["*"]
+      min_level: "low"
+      action: "block"
+
+  threshold_rules:
+    - min_score: 60
+      action: "block"
+    - min_score: 30
+      action: "require_approval"
+      require_approval_from: ["security-team"]
+
+  default_action: "warn"
+  min_confidence: 0.5

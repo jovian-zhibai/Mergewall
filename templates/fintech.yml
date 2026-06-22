@@ -1,0 +1,35 @@
+# Mergewall Governance Configuration — Fintech
+# Tailored for financial technology: extra scrutiny on auth and deps.
+# Auth changes require security-team approval before merge.
+
+governance:
+  mode: "governance"
+
+  path_rules:
+    - paths: ["src/auth/**", "src/payments/**"]
+      risk_categories: ["auth_bypass", "permission_escalation"]
+      min_level: "low"
+      action: "block"
+      require_approval_from: ["security-team"]
+
+    - paths: ["**/requirements*.txt", "**/package.json"]
+      risk_categories: ["dangerous_dependencies"]
+      min_level: "medium"
+      action: "block"
+      require_approval_from: ["security-team"]
+
+    - paths: ["**"]
+      risk_categories: ["secret_leakage"]
+      min_level: "low"
+      action: "block"
+
+  threshold_rules:
+    - min_score: 50
+      action: "block"
+      require_approval_from: ["security-team", "tech-lead"]
+    - min_score: 25
+      action: "require_approval"
+      require_approval_from: ["security-team"]
+
+  default_action: "warn"
+  min_confidence: 0.7
