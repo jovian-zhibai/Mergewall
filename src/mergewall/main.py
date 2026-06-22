@@ -119,6 +119,21 @@ def govern(diff_ref: str, fmt: str, output: str):
     else:
         click.echo(text)
 
+    # Log to audit trail
+    from mergewall.audit.trail import AuditTrail
+    from mergewall.audit.models import AuditEntry
+    trail = AuditTrail()
+    trail.log(AuditEntry(
+        repo="local",
+        pr_number=0,
+        head_sha=diff_ref,
+        merge_decision=report.merge_decision.value,
+        risk_score=report.risk_score,
+        finding_count=len(report.findings),
+        deterministic_count=report.deterministic_count,
+        llm_count=report.llm_count,
+    ))
+
     # Exit with non-zero if blocked
     from mergewall.risk.models import MergeDecision
     if report.merge_decision == MergeDecision.BLOCK:
@@ -134,11 +149,17 @@ def audit():
     if not entries:
         click.echo("No audit entries found.")
         return
+
+    # Table header
+    header = f"{'Timestamp':<20} {'Repo':<20} {'Decision':<18} {'Score':<7} {'Findings':<9}"
+    click.echo(header)
+    click.echo("-" * len(header))
+
     for entry in entries[-20:]:  # Last 20
+        ts = entry.timestamp[:19] if entry.timestamp else "-"
         click.echo(
-            f"{entry.timestamp[:19]} | {entry.repo}#{entry.pr_number} | "
-            f"{entry.merge_decision} | score={entry.risk_score} | "
-            f"findings={entry.finding_count}"
+            f"{ts:<20} {entry.repo:<20} {entry.merge_decision:<18} "
+            f"{entry.risk_score:<7} {entry.finding_count:<9}"
         )
 
 
