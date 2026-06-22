@@ -25,14 +25,14 @@ _SHARED_PATH_RE = re.compile(
 )
 
 # Threshold for "large change"
-_LARGE_CHANGE_THRESHOLD = 100  # net lines
+_LARGE_CHANGE_THRESHOLD = 100  # total lines added + removed
 
 
 class BlastRadiusGuard(BaseGuard):
     """Detects changes with high blast radius.
 
-    Flags: large changes (>100 net lines), modifications to shared
-    utility modules, changes to __init__.py re-exports.
+    Flags: large changes (>100 total lines added+removed), modifications
+    to shared utility modules, changes to __init__.py re-exports.
     """
 
     category = RiskCategory.BLAST_RADIUS
@@ -40,23 +40,24 @@ class BlastRadiusGuard(BaseGuard):
     def scan(self, file_diff: FileDiff) -> list[RiskFinding]:
         findings = []
 
-        # Check for large changes
-        net = file_diff.net_lines_changed
-        if abs(net) > _LARGE_CHANGE_THRESHOLD:
-            level = RiskLevel.HIGH if abs(net) > 200 else RiskLevel.MEDIUM
+        # Check for large changes (total lines changed, not net)
+        total = len(file_diff.added_lines) + len(file_diff.removed_lines)
+        if total > _LARGE_CHANGE_THRESHOLD:
+            level = RiskLevel.HIGH if total > 200 else RiskLevel.MEDIUM
             findings.append(RiskFinding(
                 category=RiskCategory.BLAST_RADIUS,
                 level=level,
-                title=f"Large change: {abs(net)} net lines in {file_diff.new_path}",
+                title=f"Large change: {total} total lines changed in {file_diff.new_path}",
                 why_dangerous=(
-                    f"This change modifies {abs(net)} net lines. "
+                    f"This change modifies {total} lines (+{len(file_diff.added_lines)}"
+                    f"/-{len(file_diff.removed_lines)}). "
                     "Large changes are harder to review and more likely to introduce bugs."
                 ),
                 impact_scope=f"File {file_diff.new_path} and all its dependents",
                 evidence=RiskEvidence(
                     file_path=file_diff.new_path,
                     line_numbers=[],
-                    pattern_matched=f"net_lines={net}",
+                    pattern_matched=f"total_changes={total}",
                     detection_method=DetectionMethod.DETERMINISTIC,
                 ),
                 merge_decision=MergeDecision.WARN,

@@ -24,7 +24,8 @@ _ESCALATION_PATTERNS = [
     (re.compile(r"(?i)is_superuser\s*=\s*True"), "is_superuser=True"),
     (re.compile(r"(?i)is_admin\s*=\s*True"), "is_admin=True"),
     (re.compile(r"(?i)is_staff\s*=\s*True"), "is_staff=True"),
-    (re.compile(r"(?i)role\s*==?\s*[\"']admin[\"']"), "hardcoded admin role"),
+    # NOTE: (?<!=)=(?!=) matches only assignment (=), not comparison (==)
+    (re.compile(r"(?i)role\s*(?<!=)=(?!=)\s*[\"']admin[\"']"), "hardcoded admin role"),
     (re.compile(r"(?i)permissions\s*=\s*\[?\s*[\"']\*[\"']"), "wildcard permissions"),
     (re.compile(r"(?i)allow_all\s*=\s*True"), "allow_all=True"),
     (re.compile(r"(?i)disable_auth\s*=\s*True"), "disable_auth=True"),

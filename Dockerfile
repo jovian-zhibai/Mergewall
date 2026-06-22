@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
-LABEL org.opencontainers.image.title="CodeGuardian"
-LABEL org.opencontainers.image.description="Multi-Agent AI code review system powered by MiMo"
+LABEL org.opencontainers.image.title="Mergewall"
+LABEL org.opencontainers.image.description="AI Merge Governance Runtime — block high-risk AI-generated code from entering production"
 LABEL org.opencontainers.image.licenses="MIT"
 
 RUN groupadd --gid 1000 appuser && \
@@ -13,13 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md ./
-RUN pip install --no-cache-dir .
-
-COPY --chown=appuser:appuser . .
-RUN pip install -e . --no-deps
+COPY . .
+RUN pip install --no-cache-dir -e .
 
 USER appuser
 
-ENTRYPOINT ["codeguardian"]
+ENTRYPOINT ["mergewall"]
 CMD ["--help"]
