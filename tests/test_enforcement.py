@@ -247,3 +247,67 @@ class TestSARIFOutput:
         report = RiskReport(pr_number=1, repo="org/repo")
         sarif = to_sarif(report)
         assert len(sarif["runs"][0]["results"]) == 0
+
+
+# ---------------------------------------------------------------------------
+# Pre-commit Hook Tests
+# ---------------------------------------------------------------------------
+
+
+class TestPreCommitHook:
+    def test_hook_no_staged_changes(self):
+        """pre_commit_hook returns 0 when there are no staged changes."""
+        from mergewall.hooks import pre_commit_hook
+        from unittest.mock import patch
+
+        # Mock git diff --cached to return empty
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                # git rev-parse --git-dir
+                type("Result", (), {"returncode": 0})(),
+                # git diff --cached
+                type("Result", (), {"stdout": "", "returncode": 0})(),
+            ]
+            result = pre_commit_hook()
+            assert result == 0
+
+    def test_hook_with_safe_changes(self):
+        """pre_commit_hook returns 0 for clean changes."""
+        from mergewall.hooks import pre_commit_hook
+        from unittest.mock import patch, AsyncMock
+
+        safe_diff = """diff --git a/app.py b/app.py
+index 123..456 100644
+--- a/app.py
++++ b/app.py
+@@ -1,3 +1,3 @@
+ def hello():
+-    pass
++    return "hello"
+"""
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                type("Result", (), {"returncode": 0})(),
+                type("Result", (), {"stdout": safe_diff, "returncode": 0})(),
+            ]
+            result = pre_commit_hook()
+            assert result == 0  # safe changes allowed
+
+    def test_install_hook(self):
+        """install_hook creates a pre-commit hook file."""
+        from mergewall.hooks import install_hook
+        from unittest.mock import patch, MagicMock
+
+        with patch("subprocess.check_output") as mock_git:
+            mock_git.return_value = "/tmp/test-git"
+            with patch("pathlib.Path.exists") as mock_exists:
+                mock_exists.return_value = False
+                with patch("pathlib.Path.mkdir"):
+                    with patch("pathlib.Path.write_text") as mock_write:
+                        with patch("pathlib.Path.chmod"):
+                            install_hook()
+                            assert mock_write.called
+                            # Verify hook script references mergewall
+                            call_args = mock_write.call_args[0][0]
+                            assert "mergewall hook-run" in call_args

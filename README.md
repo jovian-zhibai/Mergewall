@@ -282,6 +282,58 @@ jobs:
 
 Then enable "Require status checks to pass" in branch protection settings.
 
+### Using the Reusable Action
+
+```yaml
+# .github/workflows/governance.yml
+name: Mergewall Governance
+on: [pull_request]
+jobs:
+  govern:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jovian-zhibai/Mergewall@v0.1.0
+        with:
+          diff-ref: origin/${{ github.base_ref }}
+          format: sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+```
+
+## Pre-commit Hook
+
+Run governance checks before every commit:
+
+```bash
+# Install the hook (one-time)
+mergewall hook-install
+
+# Now every git commit runs governance checks automatically
+git commit -m "fix: update auth logic"
+# 🛡️ Mergewall Pre-commit Check
+# Risk Score: 0/100 — Clean, commit allowed.
+```
+
+To skip the hook temporarily:
+
+```bash
+SKIP=mergewall git commit -m "wip: checkpoint"
+```
+
+To uninstall:
+
+```bash
+rm .git/hooks/pre-commit
+```
+
 ## Configuration
 
 Generate a starter config:

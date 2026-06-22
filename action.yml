@@ -1,0 +1,34 @@
+name: 'Mergewall Governance'
+description: 'AI merge governance — block high-risk code changes before they reach production'
+branding:
+  icon: 'shield'
+  color: 'red'
+inputs:
+  llm-api-key:
+    description: 'LLM API key for AI-assisted risk analysis (optional; deterministic guards run without it)'
+    required: false
+  config:
+    description: 'Path to .mergewall.yml configuration file'
+    required: false
+    default: '.mergewall.yml'
+  format:
+    description: 'Output format: markdown, json, or sarif'
+    required: false
+    default: 'markdown'
+  diff-ref:
+    description: 'Git ref to diff against (e.g., origin/main)'
+    required: false
+    default: 'HEAD~1'
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - run: pip install mergewall
+      shell: bash
+    - name: Run Mergewall Governance
+      shell: bash
+      env:
+        LLM_API_KEY: ${{ inputs.llm-api-key }}
+      run: mergewall govern --diff ${{ inputs.diff-ref }} --format ${{ inputs.format }}
