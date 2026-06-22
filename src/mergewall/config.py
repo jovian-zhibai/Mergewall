@@ -175,6 +175,17 @@ def load_config(path: Optional[str | Path] = None) -> GuardianConfig:
         _config_cache_path = resolved
         return cfg
 
+    # Validate governance section if present
+    from mergewall.policy.validator import validate_config_dict
+    try:
+        validate_config_dict(raw, config_path)
+    except Exception as exc:
+        # Surface validation errors to stderr and exit if running in CLI mode
+        # (don't silently fall back to defaults for validation errors)
+        import sys
+        print(f"Config error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     model = raw.get("model")
 
     # Parse agents section

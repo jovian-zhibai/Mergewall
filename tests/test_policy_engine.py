@@ -167,3 +167,78 @@ class TestPolicyEngine:
         report = _make_report([finding])
         decision = engine.evaluate(report)
         assert "Blocked" in decision.reason or "block" in decision.reason.lower()
+
+
+# ---------------------------------------------------------------------------
+# Config Validation Tests
+# ---------------------------------------------------------------------------
+
+
+class TestConfigValidation:
+    def test_valid_config_passes(self):
+        from mergewall.policy.validator import validate_config_dict
+        validate_config_dict({
+            "governance": {
+                "mode": "governance",
+                "path_rules": [
+                    {"paths": ["src/**"], "risk_categories": ["auth_bypass"], "action": "block"}
+                ],
+                "threshold_rules": [
+                    {"min_score": 60, "action": "block"}
+                ],
+                "min_confidence": 0.7,
+            }
+        }, "test.yml")  # should not raise
+
+    def test_invalid_mode_rejected(self):
+        from mergewall.policy.validator import validate_config_dict, ConfigValidationError
+        import pytest
+        with pytest.raises(ConfigValidationError, match="governance.mode"):
+            validate_config_dict({
+                "governance": {"mode": "invalid_mode"}
+            }, "test.yml")
+
+    def test_invalid_risk_category_rejected(self):
+        from mergewall.policy.validator import validate_config_dict, ConfigValidationError
+        import pytest
+        with pytest.raises(ConfigValidationError, match="risk category"):
+            validate_config_dict({
+                "governance": {
+                    "path_rules": [
+                        {"paths": ["**"], "risk_categories": ["nonexistent_category"]}
+                    ]
+                }
+            }, "test.yml")
+
+    def test_min_score_out_of_range_rejected(self):
+        from mergewall.policy.validator import validate_config_dict, ConfigValidationError
+        import pytest
+        with pytest.raises(ConfigValidationError, match="min_score"):
+            validate_config_dict({
+                "governance": {
+                    "threshold_rules": [
+                        {"min_score": 150, "action": "block"}
+                    ]
+                }
+            }, "test.yml")
+
+    def test_min_confidence_out_of_range_rejected(self):
+        from mergewall.policy.validator import validate_config_dict, ConfigValidationError
+        import pytest
+        with pytest.raises(ConfigValidationError, match="min_confidence"):
+            validate_config_dict({
+                "governance": {"min_confidence": 1.5}
+            }, "test.yml")
+
+    def test_invalid_yaml_syntax_caught(self):
+        from mergewall.policy.validator import validate_config_file, ConfigValidationError
+        import tempfile, os, pytest
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False)
+        try:
+            tmp.write("governance:\n  mode: governance\n  path_rules:\n    - [[invalid yaml")
+            tmp.flush()
+            with pytest.raises(ConfigValidationError, match="YAML syntax"):
+                validate_config_file(tmp.name)
+        finally:
+            tmp.close()
+            os.unlink(tmp.name)
