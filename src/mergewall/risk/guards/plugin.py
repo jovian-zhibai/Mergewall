@@ -5,7 +5,9 @@ Users can define pattern-based guards in their config without writing Python cod
 
 from __future__ import annotations
 
+import fnmatch
 import re
+import logging
 from typing import TYPE_CHECKING
 
 from mergewall.diff.models import FileDiff
@@ -21,6 +23,9 @@ from mergewall.risk.models import (
 
 if TYPE_CHECKING:
     from mergewall.config import GuardianConfig
+
+
+logger = logging.getLogger(__name__)
 
 
 class CustomGuard(BaseGuard):
@@ -45,20 +50,23 @@ class CustomGuard(BaseGuard):
                 self.category = rc
                 break
 
-        self.pattern = re.compile(pattern)
+        # Validate and compile the user-provided regex
+        try:
+            self.pattern = re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"Invalid regex pattern for custom guard '{name}': {exc}") from exc
+
         self._level = level
         self._message = message
         self._suggestion = suggestion
         self._file_pattern = file_pattern
-        self._file_re = re.compile(
-            file_pattern.replace(".", r"\.").replace("*", ".*").replace("?", ".")
-        )
 
         super().__init__()
 
     def scan(self, file_diff: FileDiff) -> list[RiskFinding]:
         """Scan a file diff for matches to the custom pattern."""
-        if not self._file_re.search(file_diff.new_path):
+        # Use fnmatch for file path matching
+        if not fnmatch.fnmatch(file_diff.new_path, self._file_pattern):
             return []
 
         findings = []
@@ -112,15 +120,18 @@ def load_custom_guards(config) -> list[BaseGuard]:
         if not pattern:
             continue
 
-        guards.append(CustomGuard(
-            name=name,
-            pattern=pattern,
-            category=guard_def.get("category", "custom"),
-            level=guard_def.get("level", "medium"),
-            message=guard_def.get("message", f"Custom pattern '{pattern}' matched"),
-            suggestion=guard_def.get("suggestion", ""),
-            file_pattern=guard_def.get("file_pattern", "**"),
-        ))
+        try:
+            guards.append(CustomGuard(
+                name=name,
+                pattern=pattern,
+                category=guard_def.get("category", "custom"),
+                level=guard_def.get("level", "medium"),
+                message=guard_def.get("message", f"Custom pattern '{pattern}' matched"),
+                suggestion=guard_def.get("suggestion", ""),
+                file_pattern=guard_def.get("file_pattern", "**"),
+            ))
+        except ValueError as exc:
+            logger.warning("Skipping invalid custom guard '%s': %s", name, exc)
 
     return guards
 

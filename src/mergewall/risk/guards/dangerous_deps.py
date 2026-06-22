@@ -111,7 +111,9 @@ class DangerousDepsGuard(BaseGuard):
                     ))
 
             # Check for unpinned version (>= without upper bound) — skip if already flagged as downgrade
-            if op in (">=", ">") and "==" not in content and pkg not in downgraded_pkgs:
+            # A proper range like >=1.2.3,<2.0.0 is NOT unpinned
+            has_upper = bool(re.search(r",\s*[<]=?\s*\d", content))
+            if op in (">=", ">") and "==" not in content and not has_upper and pkg not in downgraded_pkgs:
                 findings.append(RiskFinding(
                     category=RiskCategory.DANGEROUS_DEPENDENCIES,
                     level=RiskLevel.MEDIUM,
@@ -137,8 +139,8 @@ class DangerousDepsGuard(BaseGuard):
 
     @staticmethod
     def _is_downgrade(old_ver: str, new_ver: str) -> bool:
-        old_parts = _VERSION_RE.match(old_ver)
-        new_parts = _VERSION_RE.match(new_ver)
+        old_parts = _VERSION_RE.match(old_ver.lstrip("vV"))
+        new_parts = _VERSION_RE.match(new_ver.lstrip("vV"))
         if not old_parts or not new_parts:
             return False
         for i in range(3):

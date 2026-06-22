@@ -20,9 +20,10 @@ from mergewall.risk.models import (
 )
 
 _SECRET_PATTERNS: list[tuple[str, re.Pattern]] = [
-    ("AWS Access Key", re.compile(r"AKIA[0-9A-Z]{16}")),
+    ("AWS Key", re.compile(r"A[KS]IA[0-9A-Z]{16}")),  # AKIA=long-term, ASIA=temp session
     ("AWS Secret Key", re.compile(r"(?i)aws_secret_access_key\s*[=:]\s*[\"']?([A-Za-z0-9/+=]{40})")),
     ("GitHub Token", re.compile(r"gh[ps]_[A-Za-z0-9_]{36,}")),
+    ("GitHub Fine-Grained Token", re.compile(r"github_pat_[A-Za-z0-9_]{36,}")),
     ("Generic API Key", re.compile(r'(?i)(api[_-]?key|apikey)\s*[=:]\s*["\']([A-Za-z0-9_\-]{20,})["\']')),
     ("Private Key Block", re.compile(r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----")),
     ("JWT Token", re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),

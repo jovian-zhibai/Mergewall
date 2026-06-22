@@ -118,25 +118,32 @@ def govern(diff_ref: str, fmt: str, output: str):
         text = report.to_markdown()
 
     if output:
-        Path(output).write_text(text, encoding="utf-8")
-        click.echo(f"Governance report saved to {output}")
+        try:
+            Path(output).write_text(text, encoding="utf-8")
+            click.echo(f"Governance report saved to {output}")
+        except OSError as exc:
+            click.echo(f"Error: cannot write to {output}: {exc}", err=True)
+            sys.exit(1)
     else:
         click.echo(text)
 
-    # Log to audit trail
-    from mergewall.audit.trail import AuditTrail
-    from mergewall.audit.models import AuditEntry
-    trail = AuditTrail()
-    trail.log(AuditEntry(
-        repo="local",
-        pr_number=0,
-        head_sha=diff_ref,
-        merge_decision=report.merge_decision.value,
-        risk_score=report.risk_score,
-        finding_count=len(report.findings),
-        deterministic_count=report.deterministic_count,
-        llm_count=report.llm_count,
-    ))
+    # Log to audit trail (non-fatal on failure)
+    try:
+        from mergewall.audit.trail import AuditTrail
+        from mergewall.audit.models import AuditEntry
+        trail = AuditTrail()
+        trail.log(AuditEntry(
+            repo="local",
+            pr_number=0,
+            head_sha=diff_ref,
+            merge_decision=report.merge_decision.value,
+            risk_score=report.risk_score,
+            finding_count=len(report.findings),
+            deterministic_count=report.deterministic_count,
+            llm_count=report.llm_count,
+        ))
+    except Exception:
+        logger.warning("Failed to write audit entry", exc_info=True)
 
     # Exit with non-zero if blocked
     from mergewall.risk.models import MergeDecision

@@ -43,7 +43,10 @@ _AUTH_BYPASS_ADDED = [
 _PERM_ESCALATION_ADDED = [
     (re.compile(r"(?i)is_superuser\s*=\s*True"), "is_superuser=True"),
     (re.compile(r"(?i)is_admin\s*=\s*True"), "is_admin=True"),
-    (re.compile(r"(?i)role\s*==?\s*[\"']admin[\"']"), "hardcoded admin role check"),
+    # NOTE: The negative lookbehind (?<!=) ensures we match `role = "admin"`
+    # (assignment) but NOT `role == "admin"` (comparison). This prevents false
+    # positives on legitimate role checks.
+    (re.compile(r"(?i)role\s*(?<!=)=(?!=)\s*[\"']admin[\"']"), "hardcoded admin role check"),
     (re.compile(r"(?i)permissions\s*=\s*\[?\s*[\"']\*[\"']"), "wildcard permissions"),
     (re.compile(r"(?i)allow_all\s*=\s*True"), "allow_all flag"),
 ]

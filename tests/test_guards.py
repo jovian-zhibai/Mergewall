@@ -49,7 +49,7 @@ class TestSecretLeakageGuard:
         assert findings[0].category == RiskCategory.SECRET_LEAKAGE
         assert findings[0].level == RiskLevel.CRITICAL
         assert findings[0].merge_decision == MergeDecision.BLOCK
-        assert "AWS Access Key" in findings[0].title
+        assert "AWS Key" in findings[0].title
 
     def test_detects_github_token(self):
         fd = _make_file_diff(".env", ['GITHUB_TOKEN="ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"'])

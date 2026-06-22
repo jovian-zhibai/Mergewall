@@ -70,9 +70,9 @@ class APIContractGuard(BaseGuard):
             if func_name.startswith("_"):
                 continue
             if func_name not in added_funcs:
-                # Find the line number
+                # Find the line number using word-boundary match
                 line_num = next(
-                    (ln for ln, content in removed if func_name in content),
+                    (ln for ln, content in removed if re.search(r'\b' + re.escape(func_name) + r'\b', content)),
                     0,
                 )
                 findings.append(RiskFinding(
