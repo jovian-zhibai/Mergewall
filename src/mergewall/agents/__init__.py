@@ -1,4 +1,4 @@
-"""Review agents for CodeGuardian."""
+"""Review agents for Mergewall (legacy from RevHive)."""
 
 from mergewall.agents.style_agent import StyleAgent
 from mergewall.agents.security_agent import SecurityAgent

@@ -1,6 +1,6 @@
 # Contributing to Mergewall
 
-We welcome contributions! Mergewall is an AI-powered multi-agent code review system.
+We welcome contributions! Mergewall is an AI merge governance runtime.
 
 ## Getting Started
 
@@ -8,7 +8,7 @@ We welcome contributions! Mergewall is an AI-powered multi-agent code review sys
 git clone https://github.com/jovian-zhibai/Mergewall.git
 cd Mergewall
 pip install -e ".[dev]"
-python examples/sample_review.py  # Demo mode (no API key needed)
+mergewall demo  # Demo mode (no API key needed)
 ```
 
 ## Development Workflow
@@ -23,21 +23,40 @@ python examples/sample_review.py  # Demo mode (no API key needed)
 
 ```
 src/mergewall/
-  agents/       # Specialized review agents
-  graph/        # LangGraph workflow orchestration
-  utils/        # Parsing utilities
-  team/         # Batch processing engine
-  analysis/     # Historical trend analysis
-  demo.py       # Demo mode (no API key required)
+  diff/          # Unified diff parser
+  risk/          # Diff Risk Engine + 6 deterministic guards
+    guards/      # Secret, auth, permission, API, deps, blast radius guards
+    plugin.py    # Custom guard loader from .mergewall.yml
+  policy/        # Policy Engine (path rules, thresholds, validation)
+  enforcement/   # GitHub Checks API + PR comment formatter
+  audit/         # JSONL audit trail
+  memory/        # Per-module risk history
+  output/        # SARIF output for GitHub Code Scanning
+  agents/        # Legacy review agents (from RevHive)
+  graph/         # Legacy LangGraph workflow (from RevHive)
+  utils/         # Shared utilities (LLM client, dedup, parser)
+  config.py      # Configuration loader
+  demo.py        # Governance demo mode
+  main.py        # CLI entry point
+tests/           # 128 tests
+templates/       # Policy templates + PR comment template
 ```
 
-## Adding a New Agent
+## Adding a Custom Risk Guard
 
-1. Create a new file in `src/mergewall/agents/`
-2. Extend `BaseReviewAgent`
-3. Implement `get_system_prompt()` and `get_review_focus()`
-4. Register in `agents/__init__.py`
-5. Add to the `_AGENT_CLASSES` registry in `graph/workflow.py`
+The simplest way to extend Mergewall is by defining a custom guard in `.mergewall.yml`:
+
+```yaml
+custom_guards:
+  - name: "no-console-log"
+    pattern: "console\\.log\\("
+    file_pattern: "*.js"
+    level: "low"
+    message: "Remove console.log before merge"
+```
+
+For programmatic guards, create a new file in `src/mergewall/risk/guards/`,
+extend `BaseGuard`, implement `scan()`, and register in `DiffRiskEngine._init_guards()`.
 
 ## Security Reporting
 

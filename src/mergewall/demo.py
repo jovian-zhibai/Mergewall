@@ -1,8 +1,8 @@
-"""Demo / dry-run mode for CodeGuardian.
+"""Demo / dry-run mode for Mergewall (legacy from RevHive).
 
 Runs a complete multi-agent review pipeline with simulated (mock) LLM
 responses. No API key required — perfect for evaluation, CI smoke tests,
-and demonstrating CodeGuardian's capabilities to reviewers.
+and demonstrating Mergewall's capabilities to reviewers.
 
 Produces the same structured output as the real workflow:
   - Markdown report with severity-badged findings
@@ -296,7 +296,7 @@ def _build_coordinator_summary(findings: list[ReviewFinding], risk_score: int = 
         agent_counts[f.agent] = agent_counts.get(f.agent, 0) + 1
 
     lines = [
-        "CodeGuardian Demo Review Report",
+        "Mergewall Demo Review Report",
         "=================================",
         "",
         CoordinatorAgent._risk_score_block(findings, risk_score),

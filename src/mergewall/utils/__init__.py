@@ -1,1 +1,1 @@
-"""Utility modules for CodeGuardian."""
+"""Utility modules for Mergewall."""

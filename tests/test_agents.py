@@ -1,4 +1,4 @@
-"""Unit tests for CodeGuardian agents."""
+"""Unit tests for Mergewall agents."""
 
 import pytest
 from mergewall.agents.base import (

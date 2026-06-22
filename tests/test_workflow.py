@@ -36,7 +36,7 @@ def test_report_markdown_empty():
     )
     report = ReviewReport(result)
     md = report.to_markdown()
-    assert "CodeGuardian Review Report" in md
+    assert "Mergewall Review Report" in md
     assert "Total Findings:** 0" in md
 
 

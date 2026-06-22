@@ -1,4 +1,4 @@
-"""Configuration loader for CodeGuardian.
+"""Configuration loader for Mergewall.
 
 Reads ``.mergewall.yml`` from a given path (defaults to the current
 working directory) and exposes a typed ``GuardianConfig`` object used by
