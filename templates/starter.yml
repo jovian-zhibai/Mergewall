@@ -1,0 +1,24 @@
+# Mergewall Governance Configuration — Starter
+# Minimal policy: only block CRITICAL-level secrets and auth bypass risks.
+# Good default for teams new to merge governance.
+
+governance:
+  mode: "governance"
+
+  path_rules:
+    - paths: ["**"]
+      risk_categories: ["secret_leakage"]
+      min_level: "low"
+      action: "block"
+
+    - paths: ["src/auth/**"]
+      risk_categories: ["auth_bypass", "permission_escalation"]
+      min_level: "medium"
+      action: "block"
+
+  threshold_rules:
+    - min_score: 80
+      action: "block"
+
+  default_action: "allow"
+  min_confidence: 0.7

@@ -1,0 +1,37 @@
+# Mergewall Governance Configuration — Open Source
+# Strict review for external contributors, moderate for maintainers.
+# Secrets and auth bypass always blocked. CI pipeline enforces gates.
+
+governance:
+  mode: "governance"
+
+  path_rules:
+    # Block secrets everywhere — zero tolerance
+    - paths: ["**"]
+      risk_categories: ["secret_leakage"]
+      min_level: "low"
+      action: "block"
+
+    # Auth/permission changes always require approval
+    - paths: ["src/auth/**", "src/permissions/**"]
+      risk_categories: ["auth_bypass", "permission_escalation"]
+      min_level: "low"
+      action: "block"
+      require_approval_from: ["maintainers"]
+
+    # Dependency changes require review
+    - paths: ["**/requirements*.txt", "**/package.json", "**/go.mod"]
+      risk_categories: ["dangerous_dependencies"]
+      min_level: "medium"
+      action: "require_approval"
+      require_approval_from: ["maintainers"]
+
+  threshold_rules:
+    - min_score: 70
+      action: "block"
+    - min_score: 40
+      action: "require_approval"
+      require_approval_from: ["maintainers"]
+
+  default_action: "warn"
+  min_confidence: 0.8

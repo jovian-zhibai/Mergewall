@@ -1,0 +1,42 @@
+# Mergewall Governance Configuration — Monorepo
+# Per-directory risk grading for monorepos.
+# Critical paths (auth, payments) get stricter rules than utilities.
+
+governance:
+  mode: "governance"
+
+  path_rules:
+    # Critical services — block on any HIGH finding
+    - paths: ["services/auth/**", "services/payments/**"]
+      risk_categories: ["*"]
+      min_level: "high"
+      action: "block"
+      require_approval_from: ["security-team"]
+
+    # Infrastructure — require approval for medium+
+    - paths: ["infra/**", "terraform/**", ".github/**"]
+      risk_categories: ["*"]
+      min_level: "medium"
+      action: "require_approval"
+      require_approval_from: ["devops-team"]
+
+    # Shared libraries — warn only
+    - paths: ["libs/**", "packages/**"]
+      risk_categories: ["*"]
+      min_level: "medium"
+      action: "warn"
+
+    # Global: always block secrets
+    - paths: ["**"]
+      risk_categories: ["secret_leakage"]
+      min_level: "low"
+      action: "block"
+
+  threshold_rules:
+    - min_score: 60
+      action: "block"
+    - min_score: 30
+      action: "require_approval"
+
+  default_action: "allow"
+  min_confidence: 0.7
